@@ -287,32 +287,7 @@ static char get_piece_at_square(int sq)
     return 0;
 }
 
-static void print_board(void)
-{
-    puts("");
-    for (int r = 0; r < 8; ++r)
-    {
-        printf("%d  ", 8 - r);
-        for (int f = 0; f < 8; ++f)
-        {
-            int sq = r * 8 + f;
-            char piece_char = get_piece_at_square(sq);
-            if (piece_char)
-            {
-                int index = char_pieces[(unsigned char)piece_char];
-                printf(" %s ", unicode_pieces[index]);
-            }
-            else
-            {
-                printf(" . ");
-            }
-        }
-        putchar('\n');
-    }
-    puts("    a  b  c  d  e  f  g  h \n");
 
-    printf("Side to move: %s\n", side == white ? "White" : "Black");
-}
 
 /*──────────────── File masks ────────────────────────────────────────────*/
 static const U64 not_a_file = 0xFEFEFEFEFEFEFEFEULL;
@@ -770,17 +745,23 @@ static void parse_fen(const char *fen)
         }
     }
 
-    /* 6. en-passant square */
-    if (*fen) ++fen;
-    if (*fen != '-')
+/* 6. en-passant square */
+    if (*fen) ++fen;               /* move to first char after the space */
+
+    if (*fen == '-')               /* no en-passant target */
     {
-        int file = fen[0] - 'a';
-        int rank = fen[1] - '1';
-        enpassant = rank * 8 + file;
+        enpassant = no_sq;
     }
-    else
-        enpassant = -1;
+    else                            /* something like "e3" */
+    {
+        int file = fen[0] - 'a';           /* 0-7 */
+        int rank = 8 - (fen[1] - '0');     /* flip 1-8  ->  7-0 */
+        enpassant = rank * 8 + file;       /* square index in our 0=a8 scheme */
+    }
+
 }
+
+
 static inline void init_boards()
 {
     /* clear everything */
@@ -788,11 +769,47 @@ static inline void init_boards()
     memset(occupancies, 0, sizeof(occupancies));
     side      = white;
     castle    = 0;
-    enpassant = -1;
+    enpassant = no_sq;
 
     /* set up the start position */
     parse_fen(start_position);
 }
+
+/* Print the board with unicode pieces */
+static void print_board(void)
+{
+    puts("");
+    for (int r = 0; r < 8; ++r)
+    {
+        printf("%d  ", 8 - r);
+        for (int f = 0; f < 8; ++f)
+        {
+            int sq = r * 8 + f;
+            char piece_char = get_piece_at_square(sq);
+            if (piece_char)
+            {
+                int index = char_pieces[(unsigned char)piece_char];
+                printf(" %s ", unicode_pieces[index]);
+            }
+            else
+            {
+                printf(" . ");
+            }
+        }
+        putchar('\n');
+    }
+    puts("    a  b  c  d  e  f  g  h \n");
+
+    printf("Side to move: %s\n", side == white ? "White" : "Black");
+        // print castling rights
+    printf("Castling:  %c%c%c%c\n", (castle & wk) ? 'K' : '-',
+                                           (castle & wq) ? 'Q' : '-',
+                                           (castle & bk) ? 'k' : '-',
+                                           (castle & bq) ? 'q' : '-');
+
+    printf("En-passant square: %s\n", enpassant == no_sq ? "no" : square_to_coordinates[enpassant]);
+}
+
 
 /*──────────────── Driver ───────────────────────────────────────*/
 int main(void)
@@ -807,16 +824,25 @@ int main(void)
 
     init_attacks_helper();
     init_boards(); // Initialize to the start position first
-    print_bitboard(bitboards[P]);
-    print_bitboard(occupancies[white]);
     print_board();
-    // Parse FEN string
-    parse_fen(start_position);
 
-    print_bitboard(bitboards[P]);
-    print_bitboard(occupancies[white]);
-    // Print Board with chess pieces
+
+    parse_fen(start_position);
     print_board();
+
+    parse_fen(killer_position);
+    print_board();
+
+    parse_fen(tricky_position);
+    print_board();
+
+    parse_fen(cmk_position);
+    print_board();
+    parse_fen("r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 w q a3 0 9 ");
+    
+    // print chess board
+    print_board();
+
 
     return 0;
 }
